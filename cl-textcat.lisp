@@ -90,12 +90,10 @@ is discarded."
                      (decf len))))))))
 
 (defun finalize-lm (lm &key (ngram-limit 400) remove-singletons)
-  (firstn ngram-limit
-          (delete-if
-           (lambda (pair)
-             (when remove-singletons
-               (= (cdr pair) 1)))
-           (sort (hash-table-alist lm) #'> :key #'cdr))))
+  (let ((alist (hash-table-alist lm)))
+    (when remove-singletons
+      (setf alist (delete 1 alist :key #'cdr)))
+    (firstn ngram-limit (sort alist #'> :key #'cdr))))
 
 (defun create-lm (input &key remove-singletons (ngram-limit 400))
   (finalize-lm (update-lm (dict) input)
