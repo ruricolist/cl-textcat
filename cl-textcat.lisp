@@ -17,7 +17,7 @@
           collect (cons language
                         (loop with ngram = (dict)
                               with rang = 1
-                              for line in (lines (read-file-into-string model :external-format :latin-1))
+                              for line in (lines (read-file-into-string model :external-format :utf-8))
                               do (match line
                                    ((ppcre "^([^0-9\\s]+)" ng)
                                     (setf (gethash ng ngram)
@@ -25,9 +25,9 @@
                               finally (return ngram))))))
 
 (defun classify (input &key (ngram-limit 400)
-                       (languages *language-models*)
-                       remove-singletons
-                       (cutoff 1.05))
+                            (languages *language-models*)
+                            remove-singletons
+                            (cutoff 1.05))
   "Return the language of INPUT.
 
 LANGUAGES is the alist of language models to use; default is
@@ -39,30 +39,30 @@ long texts, but should not be used with short texts.
 
 If a guess is unlikelier than than CUTOFF times the previous guess, it
 is discarded."
-  (let ((unknown
-          (mapcar #'car (create-lm input
-                                   :remove-singletons
-                                   (if (numberp remove-singletons)
-                                       (> (length input) remove-singletons)
-                                       remove-singletons)))))
-    (let ((distances
-            (loop for (language . model) in languages
-                  collect (cons language
-                                (loop for i from 0
-                                      for ngram in unknown
-                                      for match = (gethash ngram model)
-                                      if match
-                                        sum (abs (- match i))
-                                      else sum ngram-limit)))))
-      (let ((results (sort distances #'< :key #'cdr)))
-        (let ((results
-                (destructuring-bind ((best . score) . rest) results
-                  (cons best
-                        (let ((base (* score cutoff)))
-                          (loop for (lang . score) in rest
-                                while (< score base)
-                                collect lang))))))
-          (values-list (map-into results #'alpha-2 results)))))))
+  (let* ((unknown
+           (mapcar #'car (create-lm input
+                                    :remove-singletons
+                                    (if (numberp remove-singletons)
+                                        (> (length input) remove-singletons)
+                                        remove-singletons))))
+         (distances
+           (loop for (language . model) in languages
+                 collect (cons language
+                               (loop for i from 0
+                                     for ngram in unknown
+                                     for match = (gethash ngram model)
+                                     if match
+                                       sum (abs (- match i))
+                                     else sum ngram-limit))))
+         (results (sort distances #'< :key #'cdr)))
+    (let ((results
+            (destructuring-bind ((best . score) . rest) results
+              (cons best
+                    (let ((base (* score cutoff)))
+                      (loop for (lang . score) in rest
+                            while (< score base)
+                            collect lang))))))
+      (values-list (map-into results #'alpha-2 results)))))
 
 (defun update-lm (lm input)
   (declare (optimize speed))
