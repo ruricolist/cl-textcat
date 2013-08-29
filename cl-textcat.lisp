@@ -27,11 +27,16 @@
 (defun classify (input &key (ngram-limit 400)
                             (languages *language-models*)
                             remove-singletons
-                            (cutoff 1.05))
+                            (cutoff 1.05)
+                            (sample-size 20000))
   "Return the language of INPUT.
 
 LANGUAGES is the alist of language models to use; default is
 *LANGUAGE-MODELS*.
+
+SAMPLE-SIZE limits the portion of INPUT used to generate the ngram
+profile to a certain number of characters (default is 20,000, which is
+plenty). NIL means no limit.
 
 REMOVE-SINGLETONS is either NIL (don't), T (always), or a
 number (above this length). It provides a slight increase in speed for
@@ -39,11 +44,15 @@ long texts, but should not be used with short texts.
 
 If a guess is unlikelier than than CUTOFF times the previous guess, it
 is discarded."
-  (let* ((unknown
-           (mapcar #'car (create-lm input
+  (let* ((sample (if (or (not sample-size)
+                         (> sample-size (length input)))
+                     input
+                     (subseq input 0 sample-size)))
+         (unknown
+           (mapcar #'car (create-lm sample
                                     :remove-singletons
                                     (if (numberp remove-singletons)
-                                        (> (length input) remove-singletons)
+                                        (> (length sample) remove-singletons)
                                         remove-singletons))))
          (distances
            (loop for (language . model) in languages
@@ -75,7 +84,7 @@ is discarded."
                  (declare (array-length len))
                  (loop for i of-type array-length from 0 below (length word) do
                    (flet ((get-ngram (j)
-                            (let ((ngram (nsubseq word i (+ i j))))
+                            (let ((ngram (subseq word i (+ i j))))
                               (incf (gethash ngram lm 0)))))
                      (declare (dynamic-extent (function get-ngram)))
                      (when (> len 4)
@@ -93,8 +102,7 @@ is discarded."
   (declare (optimize speed))
   (split-sequence:split-sequence-if
    (lambda (c)
-     (declare (character c)
-              (optimize speed))
+     (declare (character c))
      (case c
        (#.(coerce "0123456789" 'list) t)
        ((#\Space #\Tab #\Linefeed #\Return #\Page) t)
