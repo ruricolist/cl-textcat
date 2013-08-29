@@ -67,15 +67,15 @@ is discarded."
 (defun update-lm (lm input)
   (declare (optimize speed))
   (prog1 lm
-    (loop for each in (ppcre:split "[0-9\\s]+" input)
+    (loop for token in (tokens input)
           for word = (let (*print-pretty*)
-                       (format nil "_~a_" each))
+                       (format nil "_~a_" token))
           do (locally (declare ((simple-array character (*)) word))
                (let ((len (length word)))
                  (declare (array-length len))
                  (loop for i of-type array-length from 0 below (length word) do
                    (flet ((get-ngram (j)
-                            (let ((ngram (subseq word i (+ i j))))
+                            (let ((ngram (nsubseq word i (+ i j))))
                               (incf (gethash ngram lm 0)))))
                      (declare (dynamic-extent (function get-ngram)))
                      (when (> len 4)
@@ -88,6 +88,19 @@ is discarded."
                        (get-ngram 2))
                      (get-ngram 1)
                      (decf len))))))))
+
+(defun tokens (input)
+  (declare (optimize speed))
+  (split-sequence:split-sequence-if
+   (lambda (c)
+     (declare (character c)
+              (optimize speed))
+     (case c
+       (#.(coerce "0123456789" 'list) t)
+       ((#\Space #\Tab #\Linefeed #\Return #\Page) t)
+       (t nil)))
+   input
+   :remove-empty-subseqs t))
 
 (defun finalize-lm (lm &key (ngram-limit 400) remove-singletons)
   (let ((alist (hash-table-alist lm)))
