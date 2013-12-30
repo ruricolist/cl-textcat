@@ -8,21 +8,28 @@
   (defvar *base*
     #.(fad:pathname-directory-pathname (or *compile-file-truename* *load-truename*))))
 
+(defun load-model (file)
+  (let ((lines
+          (lines
+           (read-file-into-string
+            file :external-format :utf-8))))
+    (loop with ngrams = (dict)
+          with rang = 1
+          for line in lines
+          do (match line
+               ((ppcre "^([^0-9\\s]+)" ng)
+                (setf (gethash ng ngrams) (incf rang))))
+          finally (return ngrams))))
+
 (defvar *language-models*
-  (let ((models (fad:list-directory (merge-pathnames "lm/" *base*))))
-    (format t "~&Loading language models...")
-    (loop for model in models
-          for language = (make-keyword (upcase (pathname-name model)))
-          do (format t " ~(~a~)" language)
-          collect (cons language
-                        (loop with ngram = (dict)
-                              with rang = 1
-                              for line in (lines (read-file-into-string model :external-format :utf-8))
-                              do (match line
-                                   ((ppcre "^([^0-9\\s]+)" ng)
-                                    (setf (gethash ng ngram)
-                                          (incf rang))))
-                              finally (return ngram))))))
+  (load-time-value
+   (let ((models (fad:list-directory (merge-pathnames "lm/" *base*))))
+     (format t "~&Loading language models...")
+     (loop for model in models
+           for language = (make-keyword (upcase (pathname-name model)))
+           do (format t " ~(~a~)" language)
+           collect (cons language (load-model model))))
+   t))
 
 (defun classify (input &key (ngram-limit 400)
                             (languages *language-models*)
@@ -44,16 +51,18 @@ long texts, but should not be used with short texts.
 
 If a guess is unlikelier than than CUTOFF times the previous guess, it
 is discarded."
-  (let* ((sample (if (or (not sample-size)
-                         (> sample-size (length input)))
-                     input
-                     (subseq input 0 sample-size)))
+  (let* ((sample
+           (if (or (not sample-size)
+                   (> sample-size (length input)))
+               input
+               (nsubseq input 0 sample-size)))
          (unknown
-           (mapcar #'car (create-lm sample
-                                    :remove-singletons
-                                    (if (numberp remove-singletons)
-                                        (> (length sample) remove-singletons)
-                                        remove-singletons))))
+           (let ((lm (create-lm sample
+                                :remove-singletons
+                                (if (numberp remove-singletons)
+                                    (> (length sample) remove-singletons)
+                                    remove-singletons))))
+             (map-into lm #'car lm)))
          (distances
            (loop for (language . model) in languages
                  collect (cons language
@@ -74,29 +83,32 @@ is discarded."
       (values-list (map-into results #'alpha-2 results)))))
 
 (defun update-lm (lm input)
-  (declare (optimize speed))
+  (declare (optimize (speed 3) (safety 0) (debug 0)
+                     (compilation-speed 0)))
   (prog1 lm
     (loop for token in (tokens input)
-          for word = (let (*print-pretty*)
-                       (format nil "_~a_" token))
+          for word = (concatenate 'string "_" token "_")
           do (locally (declare ((simple-array character (*)) word))
                (let ((len (length word)))
                  (declare (array-length len))
                  (loop for i of-type array-length from 0 below (length word) do
                    (flet ((get-ngram (j)
+                            (declare ((integer 1 5) j))
                             (let ((ngram (subseq word i (+ i j))))
                               (incf (gethash ngram lm 0)))))
                      (declare (dynamic-extent (function get-ngram)))
-                     (when (> len 4)
-                       (get-ngram 5))
-                     (when (> len 3)
-                       (get-ngram 4))
-                     (when (> len 2)
-                       (get-ngram 3))
-                     (when (> len 1)
-                       (get-ngram 2))
-                     (get-ngram 1)
-                     (decf len))))))))
+                     (tagbody (case len
+                                (1 (go :1))
+                                (2 (go :2))
+                                (3 (go :3))
+                                (4 (go :4))
+                                (t (go :5)))
+                      :5 (get-ngram 5)
+                      :4 (get-ngram 4)
+                      :3 (get-ngram 3)
+                      :2 (get-ngram 2)
+                      :1 (get-ngram 1)
+                        (decf len)))))))))
 
 (defun tokens (input)
   (declare (optimize speed))
@@ -111,10 +123,13 @@ is discarded."
    :remove-empty-subseqs t))
 
 (defun finalize-lm (lm &key (ngram-limit 400) remove-singletons)
+  (when remove-singletons
+    (maphash (lambda (k v)
+               (when (= v 1)
+                 (remhash k lm)))
+             lm))
   (let ((alist (hash-table-alist lm)))
-    (when remove-singletons
-      (setf alist (delete 1 alist :key #'cdr)))
-    (firstn ngram-limit (sort alist #'> :key #'cdr))))
+    (truncate-list ngram-limit (sort alist #'> :key #'cdr))))
 
 (defun create-lm (input &key remove-singletons (ngram-limit 400))
   (finalize-lm (update-lm (dict) input)

@@ -59,12 +59,10 @@ and values from KEYS-AND-VALUES."
   "Maclisp's FIRSTN: return the first N elements from LIST."
   (loop repeat n for elt in list collect elt))
 
-(defconst +whitespace+
-  #.(coerce '(#\Space #\Tab #\Linefeed #\Return #\Newline #\Page #\No-break_space) 'string))
-
 (defsubst whitespacep (char)
   "Is CHAR whitespace?"
-  (find char +whitespace+ :test #'char=))
+  (case char
+    ((#\Space #\Tab #\Linefeed #\Return #\Newline #\Page #\No-break_space) t)))
 
 (defsubst blankp (seq)
   "Is SEQ all whitespace?"
@@ -76,15 +74,13 @@ and values from KEYS-AND-VALUES."
     (string (string-upcase x))
     (character (char-upcase x))))
 
-(defconst +newlines+
-  #.(coerce '(#\Newline #\Return #\Linefeed) 'string))
-
 (defun lines (string)
   "A list of lines in STRING."
   (declare (string string))
   (split-sequence-if
    (lambda (c)
-     (find c +newlines+))
+     (case c
+       ((#\Newline #\Return #\Linefeed) t)))
    string :remove-empty-subseqs t))
 
 (defsubst nsubseq (seq start &optional (end (length seq)))
@@ -92,3 +88,11 @@ and values from KEYS-AND-VALUES."
               :element-type (array-element-type seq)
               :displaced-to seq
               :displaced-index-offset start))
+
+(defun truncate-list (n list)
+  "The destructive equivalent of FIRSTN."
+  (check-type n (integer 0 *))
+  (cond ((zerop n) nil)
+        ((atom list) list)
+        ((= n 1) (rplacd list nil))
+        (t (rplacd list (truncate-list (1- n) (cdr list))))))
