@@ -83,32 +83,60 @@ is discarded."
       (values-list (map-into results #'alpha-2 results)))))
 
 (defun update-lm (lm input)
-  (declare (optimize (speed 3) (safety 0) (debug 0)
-                     (compilation-speed 0)))
   (prog1 lm
-    (loop for token in (tokens input)
-          for word = (concatenate 'string "_" token "_")
-          do (locally (declare ((simple-array character (*)) word))
-               (let ((len (length word)))
-                 (declare (array-length len))
-                 (loop for i of-type array-length from 0 below (length word) do
-                   (flet ((get-ngram (j)
-                            (declare ((integer 1 5) j))
-                            (let ((ngram (subseq word i (+ i j))))
-                              (incf (gethash ngram lm 0)))))
-                     (declare (dynamic-extent (function get-ngram)))
-                     (tagbody (case len
-                                (1 (go :1))
-                                (2 (go :2))
-                                (3 (go :3))
-                                (4 (go :4))
-                                (t (go :5)))
-                      :5 (get-ngram 5)
-                      :4 (get-ngram 4)
-                      :3 (get-ngram 3)
-                      :2 (get-ngram 2)
-                      :1 (get-ngram 1)
-                        (decf len)))))))))
+    (dolist (token (tokens input))
+      (map-ngrams
+       (lambda (ngram)
+         (incf (gethash ngram lm 0)))
+       token))))
+
+(defun map-ngrams (fn token)
+  "Call FN on each ngram of TOKEN.
+This implements the reduced n-gram approach from Hornik et al."
+  (declare (optimize (speed 3) (safety 0) (debug 0)
+                     (compilation-speed 0))
+           (string token))
+  (let ((word (concatenate 'string "_" token "_"))
+        (fn (ensure-function fn)))
+    (declare ((simple-array character (*)) word))
+    ;; Words of length 1 yield only one trigram.
+    (if (= 1 (length token))
+        (funcall fn word)
+        (let ((len (length word)))
+          (declare (array-length len))
+          (loop for i of-type array-length from 0 below len do
+            (flet ((get-ngram (j)
+                     (declare ((integer 1 5) j))
+                     ;; Ignore ngrams that line up with either end of
+                     ;; the word, but don't have the space attached.
+                     (unless (or (= i 1) (= j (1- len)))
+                       (let ((ngram (subseq word i (+ i j))))
+                         ;; Ignore the trivial ngram "_".
+                         (unless (equal ngram "_")
+                           (prog1 nil
+                             (funcall fn ngram)))))))
+              (declare (dynamic-extent (function get-ngram)))
+              (tagbody (case len
+                         (1 (go :1))
+                         (2 (go :2))
+                         (3 (go :3))
+                         (4 (go :4))
+                         (t (go :5)))
+               :5 (get-ngram 5)
+               :4 (get-ngram 4)
+               :3 (get-ngram 3)
+               :2 (get-ngram 2)
+               :1 (get-ngram 1)
+                 (decf len))))))))
+
+(assert
+ (set-equal
+  (let ((ngrams '()))
+    (map-ngrams (lambda (ngram) (push ngram ngrams))
+                "corpus")
+    ngrams)
+  (split-sequence #\Space "_c _co _cor _corp o or orp orpu r rp rpu rpus_ p pu pus_ u us_ s_")
+  :test 'equal))
 
 (defun tokens (input)
   (declare (optimize speed))

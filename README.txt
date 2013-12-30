@@ -6,9 +6,12 @@ Proceedings of Third Annual Symposium on Document Analysis and
 Information Retrieval, Las Vegas, NV, UNLV Publications/Reprographics,
 pp. 161-175, 11-13 April 1994.
 
-It is a straightforward port of the Perl version, which is available
-under the LGPL at http://www.let.rug.nl/~vannoord/TextCat/.
+With some refinements from:
 
+Hornik, Kurt, Patrick Mair, Johannes Rauch, Wilhelm Geiger, Christian
+Buchta, and Ingo Feinerer. "The textcat Package for n-Gram Based Text
+Categorization in R." Journal of Statistical Software 52, no. 6
+(2013).
 
 CL-TEXTCAT provides a single function, TEXTCAT:CLASSIFY. It takes an
 input text and returns, as multiple values, its best guesses for the
