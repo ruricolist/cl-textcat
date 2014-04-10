@@ -1,6 +1,8 @@
 ;;;; package.lisp
 
 (defpackage #:cl-textcat
-  (:use #:cl #:alexandria #:optima #:optima.ppcre #:split-sequence)
+  (:use #:cl #:alexandria #:serapeum
+        #:optima #:optima.ppcre
+        #:split-sequence)
   (:export #:classify)
   (:nicknames #:textcat))
