@@ -5,4 +5,5 @@
         #:optima #:optima.ppcre
         #:split-sequence)
   (:export #:classify)
+  (:shadow #:tokens)
   (:nicknames #:textcat))
