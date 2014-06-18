@@ -75,12 +75,12 @@ is discarded."
          (results (sort distances #'< :key #'cdr)))
     (let ((results
             (destructuring-bind ((best . score) . rest) results
-              (cons best
+              (cons (alpha-2 best)
                     (let ((base (* score cutoff)))
                       (loop for (lang . score) in rest
                             while (< score base)
-                            collect lang))))))
-      (values-list (map-into results #'alpha-2 results)))))
+                            collect (alpha-2 lang)))))))
+      (values (first results) (rest results)))))
 
 (defun update-lm (lm input)
   (prog1 lm

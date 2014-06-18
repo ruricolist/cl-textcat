@@ -14,11 +14,13 @@ Categorization in R." Journal of Statistical Software 52, no. 6
 (2013).
 
 CL-TEXTCAT provides a single function, TEXTCAT:CLASSIFY. It takes an
-input text and returns, as multiple values, its best guesses for the
-language of the text:
+input text and returns its best guess for the language of the text:
 
      (classify "how now brown cow")
-     => :EN
+     => :EN, NIL
+
+If there are other plausible languages, a list of them is returned as
+the second value.
 
 It returns ISO639 alpha-2 (en, es) codes for languages that have them, and
 alpha-3 codes (eng, spa) for languages that do not.
