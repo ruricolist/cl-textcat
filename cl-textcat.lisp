@@ -36,7 +36,7 @@
    (let ((models (fad:list-directory (merge-pathnames "lm/" *base*))))
      (format t "~&Loading language models...")
      (loop for model in models
-           for language = (make-keyword (upcase (pathname-name model)))
+           for language = (make-keyword (string-upcase (pathname-name model)))
            do (format t " ~(~a~)" language)
            collect (cons language (load-model model))))
    t))
