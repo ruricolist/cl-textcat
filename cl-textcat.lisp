@@ -17,29 +17,28 @@
 (defparameter *cutoff* 1.05
   "The default cutoff for plausible guesses.")
 
-(defun load-model (file)
-  "Load a language model from FILE into a hash table."
-  (let ((lines
-          (lines
-           (read-file-into-string
-            file :external-format :utf-8))))
-    (loop with ngrams = (dict)
-          with rang = 1
-          for line in lines
-          do (match line
-               ((ppcre "^([^0-9\\s]+)" ng)
-                (setf (gethash ng ngrams) (incf rang))))
-          finally (return ngrams))))
+(eval-and-compile
+  (defun load-model (file)
+    "Load a language model from FILE into a hash table."
+    (let ((lines
+            (lines
+             (read-file-into-string
+              file :external-format :utf-8))))
+      (loop with ngrams = (dict)
+            with rang = 1
+            for line in lines
+            do (match line
+                 ((ppcre "^([^0-9\\s]+)" ng)
+                  (setf (gethash ng ngrams) (incf rang))))
+            finally (return ngrams)))))
 
 (defvar *language-models*
-  (load-time-value
-   (let ((models (fad:list-directory (merge-pathnames "lm/" *base*))))
-     (format t "~&Loading language models...")
-     (loop for model in models
-           for language = (make-keyword (string-upcase (pathname-name model)))
-           do (format t " ~(~a~)" language)
-           collect (cons language (load-model model))))
-   t))
+  '#.(let ((models (fad:list-directory (merge-pathnames "lm/" *base*))))
+       (format t "~&Building language models...")
+       (loop for model in models
+             for language = (make-keyword (string-upcase (pathname-name model)))
+             do (format t " ~(~a~)" language)
+             collect (cons language (load-model model)))))
 
 (defun input-model (input &key (sample-size *sample-size*)
                                remove-singletons)
