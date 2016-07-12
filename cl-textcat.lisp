@@ -106,8 +106,9 @@ is discarded."
   (prog1 lm
     (dolist (token (tokens input))
       (map-ngrams
-       (lambda (ngram)
-         (incf (gethash ngram lm 0)))
+       (lambda (word start end)
+         (let ((ngram (subseq word start end)))
+           (incf (gethash ngram lm 0))))
        token))))
 
 (defun map-ngrams (fn token)
@@ -121,7 +122,7 @@ This implements the reduced n-gram approach from Hornik et al."
     (declare ((simple-array character (*)) word))
     ;; Words of length 1 yield only one trigram.
     (if (= 1 (length token))
-        (funcall fn word)
+        (funcall fn word 0 (length word))
         (let ((len (length word)))
           (declare (array-length len))
           (loop for i of-type array-length from 0 below len do
@@ -130,11 +131,15 @@ This implements the reduced n-gram approach from Hornik et al."
                      ;; Ignore ngrams that line up with either end of
                      ;; the word, but don't have the space attached.
                      (unless (or (= i 1) (= j (1- len)))
-                       (let ((ngram (subseq word i (+ i j))))
+                       (let ((start i)
+                             (end (+ i j)))
+                         (declare (type array-index end))
                          ;; Ignore the trivial ngram "_".
-                         (unless (equal ngram "_")
-                           (prog1 nil
-                             (funcall fn ngram)))))))
+                         (unless (and (= 1 (- end start))
+                                      (char= (aref word start) #\_))
+                           (funcall fn word start end)
+                           ;; Satisfy SBCL about the return type.
+                           nil)))))
               (declare (dynamic-extent (function get-ngram)))
               (tagbody (case len
                          (1 (go :1))
@@ -152,7 +157,9 @@ This implements the reduced n-gram approach from Hornik et al."
 (assert
  (set-equal
   (let ((ngrams '()))
-    (map-ngrams (lambda (ngram) (push ngram ngrams))
+    (map-ngrams (lambda (word start end)
+                  (let ((ngram (subseq word start end)))
+                    (push ngram ngrams)))
                 "corpus")
     ngrams)
   (split-sequence #\Space "_c _co _cor _corp o or orp orpu r rp rpu rpus_ p pu pus_ u us_ s_")
