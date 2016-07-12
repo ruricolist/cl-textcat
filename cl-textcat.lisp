@@ -201,7 +201,7 @@ This implements the reduced n-gram approach from Hornik et al."
                  (remhash k lm)))
              lm))
   (let ((alist (hash-table-alist lm)))
-    (firstn ngram-limit (sort alist #'> :key #'cdr))))
+    (bestn ngram-limit alist #'> :key #'cdr)))
 
 (defun create-lm (input &key remove-singletons (ngram-limit *ngram-limit*))
   (finalize-lm (update-lm (dict) input)
