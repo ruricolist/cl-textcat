@@ -56,7 +56,8 @@
     (map-into model #'car model)))
 
 (defun language-score (unknown model &optional (ngram-limit *ngram-limit*))
-  (loop for i from 0
+  (declare (optimize speed (debug 0) (safety 1)))
+  (loop for i of-type array-index from 0
         for ngram in unknown
         for match = (gethash ngram model)
         if match
@@ -104,17 +105,22 @@ is discarded."
 
 (defun update-lm (lm input)
   (declare (optimize speed (safety 1) (debug 0)))
+  #+ () (prog1 lm
+          (dolist (token (tokens input))
+            (map-ngrams
+             (lambda (word start end)
+               (let ((ngram (subseq word start end)))
+                 (incf (gethash ngram lm 0))))
+             token)))
+  ;; NB This version is optimized to allocate as little as possible.
+  ;; To do the hashing, we re-use a displaced array as a window across
+  ;; all tokens. Only if there is no entry for an ngram do we allocate
+  ;; a new, also displaced array to serve as the key. No strings are
+  ;; allocated for ngrams.
   (prog1 lm
     (let ((window (make-array 0 :adjustable t :displaced-to "" :element-type 'character)))
       (dolist (token (tokens input))
         (map-ngrams
-         #+ () (let ((ngram (subseq word start end)))
-                 (incf (gethash ngram lm 0)))
-         ;; NB This version is optimized to allocate as little as
-         ;; possible. To do the hashing, we re-use `window' from
-         ;; above. Only if there is no entry for an ngram do we
-         ;; allocate a new displaced array to serve as the key. No
-         ;; strings are allocated for ngrams.
          (lambda (word start end)
            (declare (string word) (array-index start end))
            (let ((ngram
@@ -123,7 +129,6 @@ is discarded."
                                  :displaced-index-offset start)))
              (multiple-value-bind (count there?)
                  (gethash ngram lm 0)
-               (declare (array-index count))
                (let ((key (if there? ngram (nsubseq word start end))))
                  (setf (gethash key lm) (1+ count))))))
          token)))))
