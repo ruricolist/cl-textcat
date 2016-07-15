@@ -187,6 +187,14 @@ This implements the reduced n-gram approach from Hornik et al."
   (split-sequence #\Space "_c _co _cor _corp o or orp orpu r rp rpu rpus_ p pu pus_ u us_ s_")
   :test 'equal))
 
+(defun count-ngrams (input)
+  "For development purposes."
+  (summing
+    (map-ngrams
+     (lambda (word start end) (declare (ignore word start end))
+       (sum 1))
+     input)))
+
 (defun tokens (input)
   (declare (optimize speed))
   (split-sequence:split-sequence-if
@@ -209,9 +217,16 @@ This implements the reduced n-gram approach from Hornik et al."
     (bestn ngram-limit alist #'> :key #'cdr)))
 
 (defun create-lm (input &key remove-singletons (ngram-limit *ngram-limit*))
-  (finalize-lm (update-lm (dict) input)
-               :remove-singletons remove-singletons
-               :ngram-limit ngram-limit))
+  (let ((ht (make-hash-table
+             :test 'equal
+             ;; A more reasonable starting point. Bear in
+             ;; mind the length of the input is not
+             ;; unlimited (at the moment, it is truncated
+             ;; to 20,000).
+             :size (max 1000 (floor (length input) 2)))))
+    (finalize-lm (update-lm ht input)
+                 :remove-singletons remove-singletons
+                 :ngram-limit ngram-limit)))
 
 (defun dump-language-model (model file)
   (with-open-file (f file :direction :output
